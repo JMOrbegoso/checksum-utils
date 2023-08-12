@@ -15,7 +15,7 @@ limitations under the License.
 */
 package main
 
-import "gitea.jmorbegoso.com/jm/checksum-utils/cmd"
+import "github.com/JMOrbegoso/checksum-utils/cmd"
 
 func main() {
 	cmd.Execute()

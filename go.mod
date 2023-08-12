@@ -1,4 +1,4 @@
-module gitea.jmorbegoso.com/jm/checksum-utils
+module github.com/JMOrbegoso/checksum-utils
 
 go 1.20
 
