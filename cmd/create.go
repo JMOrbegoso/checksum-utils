@@ -20,6 +20,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"path/filepath"
@@ -199,10 +200,12 @@ const (
 )
 
 func createChecksumFile(fileFullPath string) ChecksumFileCreationResult {
-	fileContent, err := os.ReadFile(fileFullPath)
+	file, err := os.Open(fileFullPath)
 	if err != nil {
 		panic(err)
 	}
+
+	defer file.Close()
 
 	// Checksum file
 	_, err = os.Stat(fileFullPath + ".sha512")
@@ -221,20 +224,32 @@ func createChecksumFile(fileFullPath string) ChecksumFileCreationResult {
 		}
 	}
 
-	fileChecksum := sha512.Sum512(fileContent)
-	fileChecksumHex := hex.EncodeToString(fileChecksum[:])
+	// Create a new SHA512 hash object
+	hash := sha512.New()
 
+	// Copy the file content to the hash object
+	if _, err := io.Copy(hash, file); err != nil {
+		panic(err)
+	}
+
+	// Get the checksum as a byte slice
+	fileChecksum := hash.Sum(nil)
+
+	// Convert the checksum to a hexadecimal string
+	hexFileChecksum := hex.EncodeToString(fileChecksum)
+
+	// Create checksum file
 	checksumFile, err := os.Create(fileFullPath + ".sha512")
 	if err != nil {
 		return ErrorCreating
 	}
 
-	_, err = checksumFile.WriteString(fileChecksumHex)
-	if err != nil {
+	defer checksumFile.Close()
+
+	// Write the file checksum on the checksum file
+	if _, err := checksumFile.WriteString(hexFileChecksum); err != nil {
 		return ErrorCreating
 	}
-
-	checksumFile.Close()
 
 	return Created
 }
