@@ -19,7 +19,6 @@ import (
 	"crypto/sha512"
 	"encoding/hex"
 	"errors"
-	"fmt"
 	"io"
 	"log"
 	"os"
@@ -39,12 +38,8 @@ Example:
   checksum-utils create ~/documents
   checksum-utils create /mnt/external-disk/documents
 `,
+	Args: cobra.MinimumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
-		if len(args) == 0 {
-			fmt.Println("No arguments.")
-			os.Exit(1)
-		}
-
 		var errorsArray []error
 
 		for _, arg := range args {
