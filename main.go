@@ -15,8 +15,17 @@ limitations under the License.
 */
 package main
 
-import "github.com/JMOrbegoso/checksum-utils/cmd"
+import (
+	"log"
+	"os"
+
+	"github.com/JMOrbegoso/checksum-utils/cmd"
+)
 
 func main() {
+	// Configure logs
+	log.SetOutput(os.Stdout)
+
+	// Execute
 	cmd.Execute()
 }
