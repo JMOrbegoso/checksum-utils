@@ -70,7 +70,7 @@ Example:
 				log.Println("Recursively creating checksum files of", fileFullPath)
 				log.Println()
 
-				err = filepath.Walk(arg, func(path string, info os.FileInfo, err error) error {
+				if err := filepath.Walk(arg, func(path string, info os.FileInfo, err error) error {
 					if err != nil {
 						return err
 					}
@@ -108,9 +108,7 @@ Example:
 					}
 
 					return nil
-				})
-
-				if err != nil {
+				}); err != nil {
 					log.Println(err)
 				}
 			} else {
@@ -208,8 +206,36 @@ func createChecksumFile(fileFullPath string) ChecksumFileCreationResult {
 	defer file.Close()
 
 	// Checksum file
-	_, err = os.Stat(fileFullPath + ".sha512")
-	if err == nil {
+	if _, err := os.Stat(fileFullPath + ".sha512"); err != nil {
+		// Create a new SHA512 hash object
+		hash := sha512.New()
+
+		// Copy the file content to the hash object
+		if _, err := io.Copy(hash, file); err != nil {
+			panic(err)
+		}
+
+		// Get the checksum as a byte slice
+		fileChecksum := hash.Sum(nil)
+
+		// Convert the checksum to a hexadecimal string
+		hexFileChecksum := hex.EncodeToString(fileChecksum)
+
+		// Create checksum file
+		checksumFile, err := os.Create(fileFullPath + ".sha512")
+		if err != nil {
+			return ErrorCreating
+		}
+
+		defer checksumFile.Close()
+
+		// Write the file checksum on the checksum file
+		if _, err := checksumFile.WriteString(hexFileChecksum); err != nil {
+			return ErrorCreating
+		}
+
+		return Created
+	} else {
 		checksumFileContentByteArray, err := os.ReadFile(fileFullPath + ".sha512")
 		if err != nil {
 			panic(err)
@@ -223,33 +249,4 @@ func createChecksumFile(fileFullPath string) ChecksumFileCreationResult {
 			return ExistentValid
 		}
 	}
-
-	// Create a new SHA512 hash object
-	hash := sha512.New()
-
-	// Copy the file content to the hash object
-	if _, err := io.Copy(hash, file); err != nil {
-		panic(err)
-	}
-
-	// Get the checksum as a byte slice
-	fileChecksum := hash.Sum(nil)
-
-	// Convert the checksum to a hexadecimal string
-	hexFileChecksum := hex.EncodeToString(fileChecksum)
-
-	// Create checksum file
-	checksumFile, err := os.Create(fileFullPath + ".sha512")
-	if err != nil {
-		return ErrorCreating
-	}
-
-	defer checksumFile.Close()
-
-	// Write the file checksum on the checksum file
-	if _, err := checksumFile.WriteString(hexFileChecksum); err != nil {
-		return ErrorCreating
-	}
-
-	return Created
 }
