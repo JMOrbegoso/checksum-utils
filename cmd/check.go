@@ -70,7 +70,7 @@ Example:
 				log.Println("Recursively checking checksum files of", fileFullPath)
 				log.Println()
 
-				err = filepath.Walk(arg, func(path string, info os.FileInfo, err error) error {
+				if err := filepath.Walk(arg, func(path string, info os.FileInfo, err error) error {
 					if err != nil {
 						return err
 					}
@@ -108,12 +108,9 @@ Example:
 					}
 
 					return nil
-				})
-
-				if err != nil {
+				}); err != nil {
 					log.Println(err)
 				}
-
 			} else {
 				fileFullPath, err := filepath.Abs(arg)
 				if err != nil {
@@ -223,25 +220,24 @@ func checkChecksumFile(fileFullPath string) ChecksumFileResult {
 	hexFileChecksum := hex.EncodeToString(fileChecksum)
 
 	// Checksum file
-	_, err = os.Stat(fileFullPath + ".sha512")
-	if err == nil {
-		checksumFileContentByteArray, err := os.ReadFile(fileFullPath + ".sha512")
-		if err != nil {
-			panic(err)
-		}
-
-		checksumFileContentString := string(checksumFileContentByteArray)
-
-		if len(checksumFileContentString) != 128 {
-			return Invalid
-		}
-
-		if strings.EqualFold(hexFileChecksum, checksumFileContentString) {
-			return Match
-		} else {
-			return NotMatch
-		}
-	} else {
+	if _, err := os.Stat(fileFullPath + ".sha512"); err != nil {
 		return NotFound
+	}
+
+	checksumFileContentByteArray, err := os.ReadFile(fileFullPath + ".sha512")
+	if err != nil {
+		panic(err)
+	}
+
+	checksumFileContentString := string(checksumFileContentByteArray)
+
+	if len(checksumFileContentString) != 128 {
+		return Invalid
+	}
+
+	if strings.EqualFold(hexFileChecksum, checksumFileContentString) {
+		return Match
+	} else {
+		return NotMatch
 	}
 }
