@@ -23,8 +23,9 @@ import (
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
-	Use:   "checksum-utils",
-	Short: "Multiplatform checksum utils.",
+	Use:     "checksum-utils",
+	Version: "0.0.3",
+	Short:   "Multiplatform checksum utils.",
 	Long: `A multiplatform checksum utils for NAS admins.
 `,
 }
