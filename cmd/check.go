@@ -56,13 +56,13 @@ Example:
 			}
 
 			if fileInfo.IsDir() {
-				fileFullPath, err := filepath.Abs(arg)
+				fileAbsolutePath, err := filepath.Abs(arg)
 				if err != nil {
 					panic(err)
 				}
 
 				log.Println("----------------------------------------------------------------------------------------------------")
-				log.Println("Recursively checking checksum files of", fileFullPath)
+				log.Println("Recursively checking checksum files of", fileAbsolutePath)
 				log.Println()
 
 				if err := filepath.Walk(arg, func(path string, info os.FileInfo, err error) error {
@@ -70,36 +70,36 @@ Example:
 						return err
 					}
 
-					fileFullPath, err := filepath.Abs(path)
+					fileAbsolutePath, err := filepath.Abs(path)
 					if err != nil {
 						panic(err)
 					}
 
 					if info.IsDir() {
-						log.Println(fileFullPath)
+						log.Println(fileAbsolutePath)
 						return nil
 					}
 
-					if strings.HasSuffix(fileFullPath, ".sha512") {
+					if strings.HasSuffix(fileAbsolutePath, ".sha512") {
 						return nil
 					}
 
-					checksumFileResult := checkChecksumFile(fileFullPath)
+					checksumFileResult := checkChecksumFile(fileAbsolutePath)
 					filesQuantity++
 
 					switch checksumFileResult {
 					case Match:
 						matchesQuantity++
-						log.Println(fileFullPath, "✅")
+						log.Println(fileAbsolutePath, "✅")
 					case NotFound:
 						noChecksumFileQuantity++
-						log.Println(fileFullPath, "👻")
+						log.Println(fileAbsolutePath, "👻")
 					case Invalid:
 						invalidsQuantity++
-						log.Println(fileFullPath, "🗑️")
+						log.Println(fileAbsolutePath, "🗑️")
 					case NotMatch:
 						unmatchesQuantity++
-						log.Println(fileFullPath, "❌")
+						log.Println(fileAbsolutePath, "❌")
 					}
 
 					return nil
@@ -107,37 +107,37 @@ Example:
 					log.Println(err)
 				}
 			} else {
-				fileFullPath, err := filepath.Abs(arg)
+				fileAbsolutePath, err := filepath.Abs(arg)
 				if err != nil {
 					panic(err)
 				}
 
-				if strings.HasSuffix(fileFullPath, ".sha512") {
-					myError := errors.New(fileFullPath + " is a checksum file.")
+				if strings.HasSuffix(fileAbsolutePath, ".sha512") {
+					myError := errors.New(fileAbsolutePath + " is a checksum file.")
 					errorsArray = append(errorsArray, myError)
 					continue
 				}
 
 				log.Println("----------------------------------------------------------------------------------------------------")
-				log.Println("Checking checksum file of", fileFullPath)
+				log.Println("Checking checksum file of", fileAbsolutePath)
 				log.Println()
 
-				checksumFileResult := checkChecksumFile(fileFullPath)
+				checksumFileResult := checkChecksumFile(fileAbsolutePath)
 				filesQuantity++
 
 				switch checksumFileResult {
 				case Match:
 					matchesQuantity++
-					log.Println(fileFullPath, "✅")
+					log.Println(fileAbsolutePath, "✅")
 				case NotFound:
 					noChecksumFileQuantity++
-					log.Println(fileFullPath, "👻")
+					log.Println(fileAbsolutePath, "👻")
 				case Invalid:
 					invalidsQuantity++
-					log.Println(fileFullPath, "🗑️")
+					log.Println(fileAbsolutePath, "🗑️")
 				case NotMatch:
 					unmatchesQuantity++
-					log.Println(fileFullPath, "❌")
+					log.Println(fileAbsolutePath, "❌")
 				}
 			}
 
