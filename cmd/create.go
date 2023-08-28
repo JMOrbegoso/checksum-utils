@@ -198,7 +198,7 @@ const (
 func createChecksumFile(fileFullPath string) ChecksumFileCreationResult {
 	file, err := os.Open(fileFullPath)
 	if err != nil {
-		panic(err)
+		return ErrorCreating
 	}
 
 	defer file.Close()
@@ -210,7 +210,7 @@ func createChecksumFile(fileFullPath string) ChecksumFileCreationResult {
 
 		// Copy the file content to the hash object
 		if _, err := io.Copy(hash, file); err != nil {
-			panic(err)
+			return ErrorCreating
 		}
 
 		// Get the checksum as a byte slice
@@ -236,7 +236,7 @@ func createChecksumFile(fileFullPath string) ChecksumFileCreationResult {
 	} else {
 		checksumFileContentByteArray, err := os.ReadFile(fileFullPath + ".sha512")
 		if err != nil {
-			panic(err)
+			return ErrorCreating
 		}
 
 		checksumFileContentString := string(checksumFileContentByteArray)
