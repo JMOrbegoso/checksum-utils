@@ -21,10 +21,14 @@ import (
 	"github.com/spf13/cobra"
 )
 
+var (
+	version = "v0.0.4"
+)
+
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
 	Use:     "checksum-utils",
-	Version: "0.0.3",
+	Version: version,
 	Short:   "Multiplatform checksum utils.",
 	Long: `A multiplatform checksum utils for NAS admins.
 `,
