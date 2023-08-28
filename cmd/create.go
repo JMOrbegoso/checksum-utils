@@ -58,7 +58,8 @@ Example:
 			if fileInfo.IsDir() {
 				fileAbsolutePath, err := filepath.Abs(arg)
 				if err != nil {
-					panic(err)
+					errorsArray = append(errorsArray, err)
+					continue
 				}
 
 				log.Println("----------------------------------------------------------------------------------------------------")
@@ -72,7 +73,8 @@ Example:
 
 					fileAbsolutePath, err := filepath.Abs(path)
 					if err != nil {
-						panic(err)
+						errorsArray = append(errorsArray, err)
+						return nil
 					}
 
 					if info.IsDir() {
@@ -109,7 +111,8 @@ Example:
 			} else {
 				fileAbsolutePath, err := filepath.Abs(arg)
 				if err != nil {
-					panic(err)
+					errorsArray = append(errorsArray, err)
+					continue
 				}
 
 				if strings.HasSuffix(fileAbsolutePath, ".sha512") {
