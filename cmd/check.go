@@ -189,16 +189,17 @@ func init() {
 type ChecksumFileResult string
 
 const (
-	Match    ChecksumFileResult = "Match"
-	NotFound ChecksumFileResult = "NotFound"
-	Invalid  ChecksumFileResult = "Invalid"
-	NotMatch ChecksumFileResult = "NotMatch"
+	Match         ChecksumFileResult = "Match"
+	NotFound      ChecksumFileResult = "NotFound"
+	Invalid       ChecksumFileResult = "Invalid"
+	NotMatch      ChecksumFileResult = "NotMatch"
+	ErrorChecking ChecksumFileResult = "ErrorChecking"
 )
 
 func checkChecksumFile(fileFullPath string) ChecksumFileResult {
 	file, err := os.Open(fileFullPath)
 	if err != nil {
-		panic(err)
+		return ErrorChecking
 	}
 
 	defer file.Close()
@@ -208,7 +209,7 @@ func checkChecksumFile(fileFullPath string) ChecksumFileResult {
 
 	// Copy the file content to the hash object
 	if _, err := io.Copy(hash, file); err != nil {
-		panic(err)
+		return ErrorChecking
 	}
 
 	// Get the checksum as a byte slice
@@ -224,7 +225,7 @@ func checkChecksumFile(fileFullPath string) ChecksumFileResult {
 
 	checksumFileContentByteArray, err := os.ReadFile(fileFullPath + ".sha512")
 	if err != nil {
-		panic(err)
+		return ErrorChecking
 	}
 
 	checksumFileContentString := string(checksumFileContentByteArray)
