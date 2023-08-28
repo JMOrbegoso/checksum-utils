@@ -30,5 +30,10 @@ jobs:
         with:
           token: ${{ secrets.RELEASES_GITHUB_TOKEN }}
           files: |
+            ./out/checksum-utils_darwin-amd64
+            ./out/checksum-utils_darwin-arm64
             ./out/checksum-utils_linux-amd64
+            ./out/checksum-utils_linux-arm64
             ./out/checksum-utils_windows-amd64.exe
+            ./out/checksum-utils_windows-arm64.exe
+            ./out/checksum-utils_checksums.txt
