@@ -2,8 +2,6 @@ name: Build and publish releases
 
 on:
   push:
-    branches:
-      - 'main'
     tags:
       - '*'
 
