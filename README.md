@@ -7,7 +7,7 @@
     <img src="https://img.shields.io/badge/Go-informational?style=flat&logo=go&logoColor=white" alt="Go badge"/>
 </p>
 
-Checksum Utils is CLI with tools to manage the checksum of your files, focused on NAS systems.
+Checksum Utils is a CLI tool to manage the checksum of your files, focused on NAS systems.
 
 ## ✨ Features
 
