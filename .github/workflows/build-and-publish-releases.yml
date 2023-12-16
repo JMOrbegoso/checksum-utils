@@ -9,6 +9,8 @@ jobs:
   build-releases:
     name: Build releases
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - name: Checkout
         uses: actions/checkout@v3
@@ -26,7 +28,7 @@ jobs:
         uses: softprops/action-gh-release@v1
         if: startsWith(github.ref, 'refs/tags/')
         with:
-          token: ${{ secrets.RELEASES_GITHUB_TOKEN }}
+          token: ${{ secrets.GITHUB_TOKEN }}
           files: |
             ./out/checksum-utils_darwin-amd64
             ./out/checksum-utils_darwin-arm64
