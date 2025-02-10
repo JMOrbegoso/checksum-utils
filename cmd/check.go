@@ -202,6 +202,10 @@ func checkChecksumFile(fileFullPath string) ChecksumFileResult {
 		return ErrorChecking
 	}
 
+	if _, err := os.Stat(fileFullPath + ".sha512"); err != nil {
+		return NotFound
+	}
+
 	defer file.Close()
 
 	// Create a new SHA512 hash object
@@ -217,11 +221,6 @@ func checkChecksumFile(fileFullPath string) ChecksumFileResult {
 
 	// Convert the checksum to a hexadecimal string
 	hexFileChecksum := hex.EncodeToString(fileChecksum)
-
-	// Checksum file
-	if _, err := os.Stat(fileFullPath + ".sha512"); err != nil {
-		return NotFound
-	}
 
 	checksumFileContentByteArray, err := os.ReadFile(fileFullPath + ".sha512")
 	if err != nil {
