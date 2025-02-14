@@ -1,5 +1,5 @@
 /*
-Copyright © 2023 JM Orbegoso
+Copyright © 2025 JM Orbegoso
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -19,14 +19,18 @@ import (
 	"crypto/sha512"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"io"
-	"log"
 	"os"
+	"os/signal"
 	"path/filepath"
-	"strings"
+	"syscall"
 
 	"github.com/spf13/cobra"
 )
+
+var errorsCreatingChecksumFiles []error
+var resultsCreatingChecksumFiles []ChecksumFileCreationResult
 
 // createCmd represents the create command
 var createCmd = &cobra.Command{
@@ -35,182 +39,154 @@ var createCmd = &cobra.Command{
 	Long: `Generate the checksum of the files and store them in checksum files with the extension .sha512.
 
 Example:
-  checksum-utils create ~/documents
-  checksum-utils create /mnt/external-disk/documents
+  checksum-utils create .
+  checksum-utils create ./work
+	checksum-utils create ~/documents
+  checksum-utils create /mnt/external-disk/budget.pdf
 `,
 	Args: cobra.MinimumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
-		var errorsArray []error
+		printHeader()
 
-		for _, arg := range args {
-			var filesQuantity = 0
-			var createdsQuantity = 0
-			var existentValidsQuantity = 0
-			var existentInvalidsQuantity = 0
-			var errorsCreatingQuantity = 0
-
-			fileInfo, err := os.Stat(arg)
+		for _, path := range args {
+			argFileInfo, err := os.Stat(path)
 			if err != nil {
-				errorsArray = append(errorsArray, err)
+				errorsCreatingChecksumFiles = append(errorsCreatingChecksumFiles, err)
 				continue
 			}
 
-			if fileInfo.IsDir() {
-				fileAbsolutePath, err := filepath.Abs(arg)
+			fmt.Println()
+			fmt.Println("Processing", path)
+
+			resultsCreatingChecksumFiles = []ChecksumFileCreationResult{}
+
+			if argFileInfo.IsDir() {
+				directoryAbsolutePath, err := filepath.Abs(path)
 				if err != nil {
-					errorsArray = append(errorsArray, err)
-					continue
+					errorsCreatingChecksumFiles = append(errorsCreatingChecksumFiles, err)
+					return
 				}
 
-				log.Println("----------------------------------------------------------------------------------------------------")
-				log.Println("Recursively creating checksum files of", fileAbsolutePath)
-				log.Println()
-
-				if err := filepath.Walk(arg, func(path string, info os.FileInfo, err error) error {
+				if err := filepath.Walk(directoryAbsolutePath, func(filePath string, fileInfo os.FileInfo, err error) error {
 					if err != nil {
+						errorsCreatingChecksumFiles = append(errorsCreatingChecksumFiles, err)
+						fmt.Println("Error: ", err)
 						return err
 					}
 
-					fileAbsolutePath, err := filepath.Abs(path)
-					if err != nil {
-						errorsArray = append(errorsArray, err)
+					if fileInfo.IsDir() {
 						return nil
 					}
 
-					if info.IsDir() {
-						log.Println(fileAbsolutePath)
-						return nil
-					}
-
-					if strings.HasSuffix(fileAbsolutePath, ".sha512") {
-						return nil
-					}
-
-					checksumFileCreationResult := createChecksumFile(fileAbsolutePath)
-					filesQuantity++
-
-					switch checksumFileCreationResult {
-					case Created:
-						createdsQuantity++
-						log.Println(fileAbsolutePath, "✅")
-					case ExistentValid:
-						existentValidsQuantity++
-						log.Println(fileAbsolutePath, "⏭️")
-					case ExistentInvalid:
-						existentInvalidsQuantity++
-						log.Println(fileAbsolutePath, "🗑️")
-					case ErrorCreating:
-						errorsCreatingQuantity++
-						log.Println(fileAbsolutePath, "❌")
-					}
-
-					return nil
+					return handleChecksumFileCreation(filePath, &resultsCreatingChecksumFiles)
 				}); err != nil {
-					log.Println(err)
+					errorsCreatingChecksumFiles = append(errorsCreatingChecksumFiles, err)
+					fmt.Println("Error: ", err)
 				}
 			} else {
-				fileAbsolutePath, err := filepath.Abs(arg)
+				fileAbsolutePath, err := filepath.Abs(path)
 				if err != nil {
-					errorsArray = append(errorsArray, err)
+					errorsCreatingChecksumFiles = append(errorsCreatingChecksumFiles, err)
 					continue
 				}
 
-				if strings.HasSuffix(fileAbsolutePath, ".sha512") {
-					myError := errors.New(fileAbsolutePath + " is a checksum file.")
-					errorsArray = append(errorsArray, myError)
+				ext := filepath.Ext(fileAbsolutePath)
+				if ext == ".sha512" {
+					isChecksumFileError := errors.New(fileAbsolutePath + " is a checksum file.")
+					errorsCreatingChecksumFiles = append(errorsCreatingChecksumFiles, isChecksumFileError)
 					continue
 				}
 
-				log.Println("----------------------------------------------------------------------------------------------------")
-				log.Println("Creating checksum file of", fileAbsolutePath)
-				log.Println()
-
-				checksumFileCreationResult := createChecksumFile(fileAbsolutePath)
-				filesQuantity++
-
-				switch checksumFileCreationResult {
-				case Created:
-					createdsQuantity++
-					log.Println(fileAbsolutePath, "✅")
-				case ExistentValid:
-					existentValidsQuantity++
-					log.Println(fileAbsolutePath, "⏭️")
-				case ExistentInvalid:
-					existentInvalidsQuantity++
-					log.Println(fileAbsolutePath, "🗑️")
-				case ErrorCreating:
-					errorsCreatingQuantity++
-					log.Println(fileAbsolutePath, "❌")
-				}
+				handleChecksumFileCreation(path, &resultsCreatingChecksumFiles)
 			}
 
-			log.Println()
-			if createdsQuantity > 0 {
-				log.Println("      ✅      | ", createdsQuantity, "created checksum files")
-			}
-			if existentValidsQuantity > 0 {
-				log.Println("      ⏭️      | ", existentValidsQuantity, "already existent valid checksum files")
-			}
-			if existentInvalidsQuantity > 0 {
-				log.Println("      🗑️      | ", existentInvalidsQuantity, "already existent invalid checksum files")
-			}
-			if errorsCreatingQuantity > 0 {
-				log.Println("      ❌      | ", errorsCreatingQuantity, "error creating checksum files")
-			}
-			if filesQuantity > 0 {
-				log.Println("     Total    | ", filesQuantity, "files")
-			}
-			log.Println("----------------------------------------------------------------------------------------------------")
-
-			println("")
+			printResultsCreatingChecksumFiles(resultsCreatingChecksumFiles)
 		}
 
-		for _, error := range errorsArray {
-			log.Println(error)
-			println()
-		}
+		printErrorsCreatingChecksumFiles()
 	},
 }
 
 func init() {
 	rootCmd.AddCommand(createCmd)
 
-	// Here you will define your flags and configuration settings.
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
 
-	// Cobra supports Persistent Flags which will work for this command
-	// and all subcommands, e.g.:
-	// createCmd.PersistentFlags().String("foo", "", "A help for foo")
+	go func() {
+		<-c
 
-	// Cobra supports local flags which will only run when this command
-	// is called directly, e.g.:
-	// createCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
+		fmt.Println()
+		printResultsCreatingChecksumFiles(resultsCreatingChecksumFiles)
+		printErrorsCreatingChecksumFiles()
+
+		os.Exit(1)
+	}()
 }
 
-type ChecksumFileCreationResult string
+type ChecksumFileCreationStatus string
 
 const (
-	Created         ChecksumFileCreationResult = "Created"
-	ExistentValid   ChecksumFileCreationResult = "ExistentValid"
-	ExistentInvalid ChecksumFileCreationResult = "ExistentInvalid"
-	ErrorCreating   ChecksumFileCreationResult = "ErrorCreating"
+	Created  ChecksumFileCreationStatus = "Created"
+	Existing ChecksumFileCreationStatus = "Existing"
+	Failed   ChecksumFileCreationStatus = "Failed"
 )
 
-func createChecksumFile(fileFullPath string) ChecksumFileCreationResult {
-	file, err := os.Open(fileFullPath)
+type ChecksumFileCreationResult struct {
+	Path   string
+	Status ChecksumFileCreationStatus
+	Error  error
+}
+
+func handleChecksumFileCreation(filePath string, results *[]ChecksumFileCreationResult) error {
+	fileAbsolutePath, err := filepath.Abs(filePath)
 	if err != nil {
-		return ErrorCreating
+		return err
+	}
+
+	ext := filepath.Ext(fileAbsolutePath)
+	if ext == ".sha512" {
+		return nil
+	}
+
+	fmt.Print("- ", fileAbsolutePath)
+
+	result := createChecksumFile(fileAbsolutePath)
+
+	*results = append(*results, result)
+
+	switch result.Status {
+	case Created:
+		fmt.Print(" ✅")
+	case Existing:
+		fmt.Print(" ⏭️")
+	case Failed:
+		fmt.Print(" ❌")
+	}
+
+	fmt.Println()
+
+	return nil
+}
+
+func createChecksumFile(fileAbsolutePath string) ChecksumFileCreationResult {
+	file, err := os.Open(fileAbsolutePath)
+	if err != nil {
+		return ChecksumFileCreationResult{Path: fileAbsolutePath, Status: Failed, Error: err}
 	}
 
 	defer file.Close()
 
 	// Checksum file
-	if _, err := os.Stat(fileFullPath + ".sha512"); err != nil {
+	if _, err := os.Stat(fileAbsolutePath + ".sha512"); err == nil {
+		return ChecksumFileCreationResult{Path: fileAbsolutePath, Status: Existing, Error: nil}
+	} else if errors.Is(err, os.ErrNotExist) {
 		// Create a new SHA512 hash object
 		hash := sha512.New()
 
 		// Copy the file content to the hash object
 		if _, err := io.Copy(hash, file); err != nil {
-			return ErrorCreating
+			return ChecksumFileCreationResult{Path: fileAbsolutePath, Status: Failed, Error: err}
 		}
 
 		// Get the checksum as a byte slice
@@ -220,31 +196,69 @@ func createChecksumFile(fileFullPath string) ChecksumFileCreationResult {
 		hexFileChecksum := hex.EncodeToString(fileChecksum)
 
 		// Create checksum file
-		checksumFile, err := os.Create(fileFullPath + ".sha512")
+		checksumFile, err := os.Create(fileAbsolutePath + ".sha512")
 		if err != nil {
-			return ErrorCreating
+			return ChecksumFileCreationResult{Path: fileAbsolutePath, Status: Failed, Error: err}
 		}
 
 		defer checksumFile.Close()
 
 		// Write the file checksum on the checksum file
 		if _, err := checksumFile.WriteString(hexFileChecksum); err != nil {
-			return ErrorCreating
+			return ChecksumFileCreationResult{Path: fileAbsolutePath, Status: Failed, Error: err}
 		}
 
-		return Created
+		return ChecksumFileCreationResult{Path: fileAbsolutePath, Status: Created, Error: nil}
 	} else {
-		checksumFileContentByteArray, err := os.ReadFile(fileFullPath + ".sha512")
-		if err != nil {
-			return ErrorCreating
+		return ChecksumFileCreationResult{Path: fileAbsolutePath, Status: Failed, Error: err}
+	}
+}
+
+func printResultsCreatingChecksumFiles(results []ChecksumFileCreationResult) {
+	if len(results) > 0 {
+		fmt.Println("Results:", len(results), "files processed")
+	}
+
+	var createdChecksumFilesQuantity = 0
+	var existingChecksumFilesQuantity = 0
+	var failedResults []ChecksumFileCreationResult
+
+	for _, result := range results {
+		switch result.Status {
+		case Created:
+			createdChecksumFilesQuantity++
+		case Existing:
+			existingChecksumFilesQuantity++
+		case Failed:
+			failedResults = append(failedResults, result)
 		}
+	}
 
-		checksumFileContentString := string(checksumFileContentByteArray)
+	if createdChecksumFilesQuantity > 0 {
+		fmt.Println("- ✅ | ", createdChecksumFilesQuantity, "checksum files created successfully")
+	}
 
-		if len(checksumFileContentString) != 128 {
-			return ExistentInvalid
-		} else {
-			return ExistentValid
+	if existingChecksumFilesQuantity > 0 {
+		fmt.Println("- ⏭️  | ", existingChecksumFilesQuantity, "files already have an existing checksum file")
+	}
+
+	if len(failedResults) > 0 {
+		fmt.Println("- ❌ | ", len(failedResults), "checksum files failed to create")
+		fmt.Println("Fails")
+		for _, failedResult := range failedResults {
+			fmt.Print("- ", failedResult.Path, " | Error: ", failedResult.Error)
+			fmt.Println()
+		}
+	}
+}
+
+func printErrorsCreatingChecksumFiles() {
+	if len(errorsCreatingChecksumFiles) > 0 {
+		fmt.Println()
+		fmt.Println("Errors:")
+
+		for _, error := range errorsCreatingChecksumFiles {
+			fmt.Println("- ", error)
 		}
 	}
 }
