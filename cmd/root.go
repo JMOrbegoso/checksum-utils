@@ -18,6 +18,8 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/spf13/cobra"
 )
@@ -45,7 +47,21 @@ func Execute() {
 }
 
 func init() {
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
 
+	go func() {
+		<-c
+		fmt.Println()
+
+		printResultsCheckingChecksumFiles(resultsCheckingChecksumFiles)
+		printErrorsCheckingChecksumFiles()
+
+		printResultsCreatingChecksumFiles(resultsCreatingChecksumFiles)
+		printErrorsCreatingChecksumFiles()
+
+		os.Exit(1)
+	}()
 }
 
 func printHeader() {

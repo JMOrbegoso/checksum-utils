@@ -22,9 +22,7 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/signal"
 	"path/filepath"
-	"syscall"
 
 	"github.com/spf13/cobra"
 )
@@ -109,19 +107,6 @@ Example:
 
 func init() {
 	rootCmd.AddCommand(createCmd)
-
-	c := make(chan os.Signal, 1)
-	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
-
-	go func() {
-		<-c
-
-		fmt.Println()
-		printResultsCreatingChecksumFiles(resultsCreatingChecksumFiles)
-		printErrorsCreatingChecksumFiles()
-
-		os.Exit(1)
-	}()
 }
 
 type ChecksumFileCreationStatus string
