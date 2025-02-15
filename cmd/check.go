@@ -1,5 +1,5 @@
 /*
-Copyright © 2023 JM Orbegoso
+Copyright © 2025 JM Orbegoso
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -19,191 +19,167 @@ import (
 	"crypto/sha512"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"io"
-	"log"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"strings"
+	"syscall"
 
 	"github.com/spf13/cobra"
 )
+
+var errorsCheckingChecksumFiles []error
+var resultsCheckingChecksumFiles []ChecksumFileVerificationResult
 
 // checkCmd represents the check command
 var checkCmd = &cobra.Command{
 	Use:   "check",
 	Short: "Check files checksum.",
 	Long: `Get the content of the checksum files and compare them with the checksum of their no-checksum files.
-
 Example:
+  checksum-utils check .
+  checksum-utils check ./work
 	checksum-utils check ~/documents
-	checksum-utils check /mnt/external-disk/documents
+  checksum-utils check /mnt/external-disk/budget.pdf
 `,
 	Args: cobra.MinimumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
-		var errorsArray []error
+		printHeader()
 
-		for _, arg := range args {
-			var filesQuantity = 0
-			var matchesQuantity = 0
-			var unmatchesQuantity = 0
-			var invalidsQuantity = 0
-			var noChecksumFileQuantity = 0
-
-			fileInfo, err := os.Stat(arg)
+		for _, path := range args {
+			argFileInfo, err := os.Stat(path)
 			if err != nil {
-				errorsArray = append(errorsArray, err)
+				errorsCheckingChecksumFiles = append(errorsCheckingChecksumFiles, err)
 				continue
 			}
 
-			if fileInfo.IsDir() {
-				fileAbsolutePath, err := filepath.Abs(arg)
+			fmt.Println()
+			fmt.Println("Processing", path)
+
+			resultsCheckingChecksumFiles = []ChecksumFileVerificationResult{}
+
+			if argFileInfo.IsDir() {
+				directoryAbsolutePath, err := filepath.Abs(path)
 				if err != nil {
-					errorsArray = append(errorsArray, err)
-					continue
+					errorsCheckingChecksumFiles = append(errorsCheckingChecksumFiles, err)
+					return
 				}
 
-				log.Println("----------------------------------------------------------------------------------------------------")
-				log.Println("Recursively checking checksum files of", fileAbsolutePath)
-				log.Println()
-
-				if err := filepath.Walk(arg, func(path string, info os.FileInfo, err error) error {
+				if err := filepath.Walk(directoryAbsolutePath, func(filePath string, fileInfo os.FileInfo, err error) error {
 					if err != nil {
+						errorsCheckingChecksumFiles = append(errorsCheckingChecksumFiles, err)
+						fmt.Println("Error: ", err)
 						return err
 					}
 
-					fileAbsolutePath, err := filepath.Abs(path)
-					if err != nil {
-						errorsArray = append(errorsArray, err)
+					if fileInfo.IsDir() {
 						return nil
 					}
 
-					if info.IsDir() {
-						log.Println(fileAbsolutePath)
-						return nil
-					}
-
-					if strings.HasSuffix(fileAbsolutePath, ".sha512") {
-						return nil
-					}
-
-					checksumFileResult := checkChecksumFile(fileAbsolutePath)
-					filesQuantity++
-
-					switch checksumFileResult {
-					case Match:
-						matchesQuantity++
-						log.Println(fileAbsolutePath, "✅")
-					case NotFound:
-						noChecksumFileQuantity++
-						log.Println(fileAbsolutePath, "👻")
-					case Invalid:
-						invalidsQuantity++
-						log.Println(fileAbsolutePath, "🗑️")
-					case NotMatch:
-						unmatchesQuantity++
-						log.Println(fileAbsolutePath, "❌")
-					}
-
-					return nil
+					return handleChecksumFileVerification(filePath, &resultsCheckingChecksumFiles)
 				}); err != nil {
-					log.Println(err)
+					errorsCheckingChecksumFiles = append(errorsCheckingChecksumFiles, err)
+					fmt.Println("Error: ", err)
 				}
 			} else {
-				fileAbsolutePath, err := filepath.Abs(arg)
+				fileAbsolutePath, err := filepath.Abs(path)
 				if err != nil {
-					errorsArray = append(errorsArray, err)
+					errorsCheckingChecksumFiles = append(errorsCheckingChecksumFiles, err)
 					continue
 				}
 
-				if strings.HasSuffix(fileAbsolutePath, ".sha512") {
-					myError := errors.New(fileAbsolutePath + " is a checksum file.")
-					errorsArray = append(errorsArray, myError)
+				ext := filepath.Ext(fileAbsolutePath)
+				if ext == ".sha512" {
+					isChecksumFileError := errors.New(fileAbsolutePath + " is a checksum file.")
+					errorsCheckingChecksumFiles = append(errorsCheckingChecksumFiles, isChecksumFileError)
 					continue
 				}
 
-				log.Println("----------------------------------------------------------------------------------------------------")
-				log.Println("Checking checksum file of", fileAbsolutePath)
-				log.Println()
-
-				checksumFileResult := checkChecksumFile(fileAbsolutePath)
-				filesQuantity++
-
-				switch checksumFileResult {
-				case Match:
-					matchesQuantity++
-					log.Println(fileAbsolutePath, "✅")
-				case NotFound:
-					noChecksumFileQuantity++
-					log.Println(fileAbsolutePath, "👻")
-				case Invalid:
-					invalidsQuantity++
-					log.Println(fileAbsolutePath, "🗑️")
-				case NotMatch:
-					unmatchesQuantity++
-					log.Println(fileAbsolutePath, "❌")
-				}
+				handleChecksumFileVerification(path, &resultsCheckingChecksumFiles)
 			}
 
-			log.Println()
-			if noChecksumFileQuantity > 0 {
-				log.Println("      👻      | ", noChecksumFileQuantity, "files without a checksum file")
-			}
-			if invalidsQuantity > 0 {
-				log.Println("      🗑️      | ", invalidsQuantity, "checksum files with invalid format")
-			}
-			if matchesQuantity > 0 {
-				log.Println("      ✅      | ", matchesQuantity, "checksum files match")
-			}
-			if unmatchesQuantity > 0 {
-				log.Println("      ❌      | ", unmatchesQuantity, "checksum files not match")
-			}
-			if filesQuantity > 0 {
-				log.Println("     Total    | ", filesQuantity, "files")
-			}
-			log.Println("----------------------------------------------------------------------------------------------------")
-
-			println("")
+			printResultsCheckingChecksumFiles(resultsCheckingChecksumFiles)
 		}
 
-		for _, error := range errorsArray {
-			log.Println(error)
-			println()
-		}
+		printErrorsCheckingChecksumFiles()
 	},
 }
 
 func init() {
 	rootCmd.AddCommand(checkCmd)
 
-	// Here you will define your flags and configuration settings.
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
 
-	// Cobra supports Persistent Flags which will work for this command
-	// and all subcommands, e.g.:
-	// checkCmd.PersistentFlags().String("foo", "", "A help for foo")
+	go func() {
+		<-c
 
-	// Cobra supports local flags which will only run when this command
-	// is called directly, e.g.:
-	// checkCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
+		fmt.Println()
+		printResultsCheckingChecksumFiles(resultsCheckingChecksumFiles)
+		printErrorsCheckingChecksumFiles()
+
+		os.Exit(1)
+	}()
 }
 
-type ChecksumFileResult string
+type ChecksumFileVerificationStatus string
 
 const (
-	Match         ChecksumFileResult = "Match"
-	NotFound      ChecksumFileResult = "NotFound"
-	Invalid       ChecksumFileResult = "Invalid"
-	NotMatch      ChecksumFileResult = "NotMatch"
-	ErrorChecking ChecksumFileResult = "ErrorChecking"
+	Match          ChecksumFileVerificationStatus = "Match"
+	NotMatch       ChecksumFileVerificationStatus = "NotMatch"
+	NotFound       ChecksumFileVerificationStatus = "NotFound"
+	CheckingFailed ChecksumFileVerificationStatus = "CheckingFailed"
 )
 
-func checkChecksumFile(fileFullPath string) ChecksumFileResult {
-	file, err := os.Open(fileFullPath)
+type ChecksumFileVerificationResult struct {
+	Path   string
+	Status ChecksumFileVerificationStatus
+	Error  error
+}
+
+func handleChecksumFileVerification(filePath string, results *[]ChecksumFileVerificationResult) error {
+	fileAbsolutePath, err := filepath.Abs(filePath)
 	if err != nil {
-		return ErrorChecking
+		return err
 	}
 
-	if _, err := os.Stat(fileFullPath + ".sha512"); err != nil {
-		return NotFound
+	ext := filepath.Ext(fileAbsolutePath)
+	if ext == ".sha512" {
+		return nil
+	}
+
+	fmt.Print("- ", fileAbsolutePath)
+
+	result := checkChecksumFile(fileAbsolutePath)
+
+	*results = append(*results, result)
+
+	switch result.Status {
+	case Match:
+		fmt.Print(" ✅")
+	case NotMatch:
+		fmt.Print(" ❌")
+	case NotFound:
+		fmt.Print(" 👻")
+	case CheckingFailed:
+		fmt.Print(" ❌")
+	}
+
+	fmt.Println()
+
+	return nil
+}
+
+func checkChecksumFile(fileAbsolutePath string) ChecksumFileVerificationResult {
+	file, err := os.Open(fileAbsolutePath)
+	if err != nil {
+		return ChecksumFileVerificationResult{Path: fileAbsolutePath, Status: CheckingFailed, Error: err}
+	}
+
+	if _, err := os.Stat(fileAbsolutePath + ".sha512"); err != nil {
+		return ChecksumFileVerificationResult{Path: fileAbsolutePath, Status: NotFound, Error: nil}
 	}
 
 	defer file.Close()
@@ -213,7 +189,7 @@ func checkChecksumFile(fileFullPath string) ChecksumFileResult {
 
 	// Copy the file content to the hash object
 	if _, err := io.Copy(hash, file); err != nil {
-		return ErrorChecking
+		return ChecksumFileVerificationResult{Path: fileAbsolutePath, Status: CheckingFailed, Error: err}
 	}
 
 	// Get the checksum as a byte slice
@@ -222,20 +198,72 @@ func checkChecksumFile(fileFullPath string) ChecksumFileResult {
 	// Convert the checksum to a hexadecimal string
 	hexFileChecksum := hex.EncodeToString(fileChecksum)
 
-	checksumFileContentByteArray, err := os.ReadFile(fileFullPath + ".sha512")
+	checksumFileContentByteArray, err := os.ReadFile(fileAbsolutePath + ".sha512")
 	if err != nil {
-		return ErrorChecking
+		return ChecksumFileVerificationResult{Path: fileAbsolutePath, Status: CheckingFailed, Error: err}
 	}
 
 	checksumFileContentString := string(checksumFileContentByteArray)
 
-	if len(checksumFileContentString) != 128 {
-		return Invalid
+	if strings.EqualFold(hexFileChecksum, checksumFileContentString) {
+		return ChecksumFileVerificationResult{Path: fileAbsolutePath, Status: Match, Error: nil}
 	}
 
-	if strings.EqualFold(hexFileChecksum, checksumFileContentString) {
-		return Match
-	} else {
-		return NotMatch
+	return ChecksumFileVerificationResult{Path: fileAbsolutePath, Status: NotMatch, Error: nil}
+}
+
+func printResultsCheckingChecksumFiles(results []ChecksumFileVerificationResult) {
+	if len(results) > 0 {
+		fmt.Println("Results:", len(results), "files processed")
+	}
+
+	var matchedChecksumFilesQuantity = 0
+	var notMatchedChecksumFilesQuantity = 0
+	var notExistingChecksumFilesQuantity = 0
+	var failedResults []ChecksumFileVerificationResult
+
+	for _, result := range results {
+		switch result.Status {
+		case Match:
+			matchedChecksumFilesQuantity++
+		case NotMatch:
+			notMatchedChecksumFilesQuantity++
+		case NotFound:
+			notExistingChecksumFilesQuantity++
+		case CheckingFailed:
+			failedResults = append(failedResults, result)
+		}
+	}
+
+	if matchedChecksumFilesQuantity > 0 {
+		fmt.Println("- ✅ | ", matchedChecksumFilesQuantity, "checksum files match")
+	}
+
+	if notMatchedChecksumFilesQuantity > 0 {
+		fmt.Println("- ❌ | ", notMatchedChecksumFilesQuantity, "checksum files not match")
+	}
+
+	if notExistingChecksumFilesQuantity > 0 {
+		fmt.Println("- 👻  | ", notExistingChecksumFilesQuantity, "files without a checksum file")
+	}
+
+	if len(failedResults) > 0 {
+		fmt.Println("- ❌ | ", len(failedResults), "checksum files failed to check")
+		fmt.Println("Fails")
+		for _, failedResult := range failedResults {
+			fmt.Print("- ", failedResult.Path, " | Error: ", failedResult.Error)
+			fmt.Println()
+		}
+	}
+}
+
+func printErrorsCheckingChecksumFiles() {
+	if len(errorsCheckingChecksumFiles) > 0 {
+		fmt.Println()
+		fmt.Println("Errors:")
+
+		for _, error := range errorsCheckingChecksumFiles {
+			fmt.Println("- ", error)
+		}
 	}
 }
