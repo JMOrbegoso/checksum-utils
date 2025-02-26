@@ -145,7 +145,7 @@ func handleChecksumFileVerification(filePath string, results *[]ChecksumFileVeri
 	case Match:
 		fmt.Print(" ✅")
 	case NotMatch:
-		fmt.Print(" ❌")
+		fmt.Print(" ⚠️")
 	case NotFound:
 		fmt.Print(" 👻")
 	case CheckingFailed:
@@ -203,8 +203,8 @@ func printResultsCheckingChecksumFiles(results []ChecksumFileVerificationResult)
 	}
 
 	var matchedChecksumFilesQuantity = 0
-	var notMatchedChecksumFilesQuantity = 0
-	var notExistingChecksumFilesQuantity = 0
+	var notMatchedResults []ChecksumFileVerificationResult
+	var notExistingResults []ChecksumFileVerificationResult
 	var failedResults []ChecksumFileVerificationResult
 
 	for _, result := range results {
@@ -212,29 +212,36 @@ func printResultsCheckingChecksumFiles(results []ChecksumFileVerificationResult)
 		case Match:
 			matchedChecksumFilesQuantity++
 		case NotMatch:
-			notMatchedChecksumFilesQuantity++
+			notMatchedResults = append(notMatchedResults, result)
 		case NotFound:
-			notExistingChecksumFilesQuantity++
+			notExistingResults = append(notExistingResults, result)
 		case CheckingFailed:
 			failedResults = append(failedResults, result)
 		}
 	}
 
 	if matchedChecksumFilesQuantity > 0 {
-		fmt.Println("- ✅ | ", matchedChecksumFilesQuantity, "checksum files match")
+		fmt.Println("✅ :", matchedChecksumFilesQuantity, "checksum files match")
 	}
 
-	if notMatchedChecksumFilesQuantity > 0 {
-		fmt.Println("- ❌ | ", notMatchedChecksumFilesQuantity, "checksum files not match")
+	if len(notMatchedResults) > 0 {
+		fmt.Println("⚠️ :", len(notMatchedResults), "checksum files not match")
+		for _, notMatchedResult := range notMatchedResults {
+			fmt.Print("- ", notMatchedResult.Path)
+			fmt.Println()
+		}
 	}
 
-	if notExistingChecksumFilesQuantity > 0 {
-		fmt.Println("- 👻  | ", notExistingChecksumFilesQuantity, "files without a checksum file")
+	if len(notExistingResults) > 0 {
+		fmt.Println("👻 :", len(notExistingResults), "files without a checksum file")
+		for _, notExistingResult := range notExistingResults {
+			fmt.Print("- ", notExistingResult.Path)
+			fmt.Println()
+		}
 	}
 
 	if len(failedResults) > 0 {
-		fmt.Println("- ❌ | ", len(failedResults), "checksum files failed to check")
-		fmt.Println("Fails")
+		fmt.Println("❌ :", len(failedResults), "checksum files failed to check")
 		for _, failedResult := range failedResults {
 			fmt.Print("- ", failedResult.Path, " | Error: ", failedResult.Error)
 			fmt.Println()
