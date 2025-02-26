@@ -220,16 +220,15 @@ func printResultsCreatingChecksumFiles(results []ChecksumFileCreationResult) {
 	}
 
 	if createdChecksumFilesQuantity > 0 {
-		fmt.Println("- ✅ | ", createdChecksumFilesQuantity, "checksum files created successfully")
+		fmt.Println("✅ :", createdChecksumFilesQuantity, "checksum files created successfully")
 	}
 
 	if existingChecksumFilesQuantity > 0 {
-		fmt.Println("- ⏭️  | ", existingChecksumFilesQuantity, "files already have an existing checksum file")
+		fmt.Println("⏭️ :", existingChecksumFilesQuantity, "files already have an existing checksum file")
 	}
 
 	if len(failedResults) > 0 {
-		fmt.Println("- ❌ | ", len(failedResults), "checksum files failed to create")
-		fmt.Println("Fails")
+		fmt.Println("❌ :", len(failedResults), "checksum files failed to create")
 		for _, failedResult := range failedResults {
 			fmt.Print("- ", failedResult.Path, " | Error: ", failedResult.Error)
 			fmt.Println()
